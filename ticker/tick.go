@@ -1,4 +1,5 @@
 package ticker
+
 import (
 	"log"
 	"math/rand"
@@ -11,7 +12,7 @@ import (
 type RandomTicker struct {
 	C     chan time.Time
 	stopc chan chan struct{}
-	mean   float64
+	mean  float64
 	max   int64
 }
 
@@ -22,7 +23,7 @@ func NewRandomTicker(mean float64, max time.Duration) *RandomTicker {
 	rt := &RandomTicker{
 		C:     make(chan time.Time),
 		stopc: make(chan chan struct{}),
-		mean:   mean,
+		mean:  mean,
 		max:   max.Nanoseconds(),
 	}
 	go rt.loop()
@@ -59,11 +60,10 @@ func (rt *RandomTicker) loop() {
 }
 
 func (rt *RandomTicker) nextInterval() time.Duration {
-	interval := 10000000000* rand.ExpFloat64()/rt.mean
-	if time.Duration(interval).Nanoseconds()>rt.max {
+	interval := 10000000000 * rand.ExpFloat64() / rt.mean
+	if time.Duration(interval).Nanoseconds() > rt.max {
 		interval = float64(rt.max)
 	}
 	log.Println(time.Duration(interval).Seconds())
 	return time.Duration(interval) * time.Nanosecond
 }
-

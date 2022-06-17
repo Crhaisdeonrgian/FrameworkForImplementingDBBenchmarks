@@ -1,6 +1,7 @@
 package data
 
 import (
+	"flag"
 	"github.com/wcharczuk/go-chart"
 	"log"
 	"os"
@@ -10,13 +11,20 @@ type Outputer interface {
 	Output()
 }
 
-func (m MetricData) Output(){
+func (m MetricData) Output() {
 	//Разнести по разным флагам запуска
-	m.WriteToFile()
-	m.DrawPlot()
+	write := flag.Bool("save", false, "save data to csv file")
+	draw := flag.Bool("draw", false, "save data to csv file")
+	flag.Parse()
+	if *write {
+		m.WriteToFile()
+	}
+	if *draw {
+		m.DrawPlot()
+	}
 }
-type Results []Outputer
 
+type Results []Outputer
 
 func (m MetricData) WriteToFile() {
 	file, err := os.Create(m.Name + "Result" + ".csv")
@@ -35,19 +43,17 @@ func (m MetricData) WriteToFile() {
 	if err != nil {
 		log.Println("Unable to write to file:", err)
 	}
-	for time , row := range m.Data {
-		_, err = file.WriteString(m.Timestamps[time] + "," + row +"\n")
+	for time, row := range m.Data {
+		_, err = file.WriteString(m.Timestamps[time] + "," + row + "\n")
 		if err != nil {
 			log.Println("Unable to write to file:", err)
 		}
 	}
 }
 
-
-
 func (m MetricData) DrawPlot() {
 
-	fd, err := os.Create( m.Name + "Plot.png")
+	fd, err := os.Create(m.Name + "Plot.png")
 	if err != nil {
 		log.Fatal("cannot open file ", err)
 	}

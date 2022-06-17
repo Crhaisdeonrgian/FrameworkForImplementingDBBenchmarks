@@ -27,7 +27,7 @@ const (
 	CreateTable = "CREATE TABLE IF NOT EXISTS tbl  (id int AUTO_INCREMENT PRIMARY KEY, a_col nvarchar(1025), b_col nvarchar(1025), c_col nvarchar(1025), d_col nvarchar(1025) )"
 )
 const CPUCount = 1
-const Memory = 1024*1024*1024
+const Memory = 1024 * 1024 * 1024
 const driverName = "mysql"
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890йцукенгшщзхъфывапролджэёячсмитьбюЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЁЯЧСМИТЬБЮ"
 

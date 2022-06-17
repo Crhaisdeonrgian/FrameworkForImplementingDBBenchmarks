@@ -2,84 +2,103 @@ package linker
 
 import (
 	"database/sql"
+	"flag"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
 	"github.com/ory/dockertest"
 	"github.com/ory/dockertest/docker"
 	"io/ioutil"
 	"log"
+	"os"
 	"sync"
 	"time"
 )
 
-const CPUCount = 1
-const Memory = 1024*1024*1024
-const driverName = "mysql"
+const (
+	FilePath   string = "/Users/igorvozhga/DIPLOMA/"
+	MountPoint string = "/Users/igorvozhga/DIPLOMA/mountDir:/var/lib/mysql"
+	CPUCount          = 1
+	Memory            = 1024 * 1024 * 1024
+	driverName        = "mysql"
+)
 
 type DBOptions struct {
-	User     string
-	Password string
+	user     string
+	password string
 }
 type EnvOptions struct {
-	FilePath      string 		//Путь к папке для сохранения результатов
-	MountPoints   []string 		//Путь к папке, в которую монтируется том контейнера
+	filePath    string   //Путь к папке для сохранения результатов
+	mountPoints []string //Путь к папке, в которую монтируется том контейнера
 }
-
-
-type Linker interface {
-	Link() (*sql.DB, error)
-	Close() error
-	GetData()
-}
-
 type DockerOptions struct {
-	Account    DBOptions
-	Folders    EnvOptions
-	Repository string
-	Tag           string
-	Env           []string
+	account    DBOptions
+	folders    EnvOptions
+	repository string
+	tag        string
+	env        []string
+	DB         *sql.DB
+	config     Config
 }
 
 type Connections []Linker
 
 type Config struct {
-	Pool *dockertest.Pool
-	Container *dockertest.Resource
+	pool      *dockertest.Pool
+	container *dockertest.Resource
 }
 
-//Банда 4х
+type Linker interface {
+	Link() error
+	Close()
+	//GetData()
+}
 
-/*func newDockerLinker(lalala) (Linker, error) {
-
-}*/
-
-func (c Connections) GetConnections() ([]*sql.DB){
-	var dbStds []*sql.DB
-	for _, conn := range c {
-		dbStd, err := conn.Link()
-		if(err!=nil){
-			log.Fatal("Error in linking connection: ", err)
-			continue
-		}
-		dbStds = append(dbStds, dbStd)
+func newDockerLinker() Linker {
+	file := flag.String("saveto", FilePath, "specify where to save collected data")
+	mount := flag.String("mountPoint", MountPoint, "specify where to mount volume")
+	flag.Parse()
+	var dockerLinker Linker
+	var eo = EnvOptions{
+		filePath:    *file,
+		mountPoints: []string{*mount},
 	}
-	return dbStds
+	var bo = DBOptions{
+		user:     "root",
+		password: "secret",
+	}
+	var options = DockerOptions{account: bo,
+		folders:    eo,
+		repository: "mysql",
+		tag:        "5.6",
+		env:        []string{"MYSQL_ROOT_PASSWORD=secret"},
+	}
+	dockerLinker = options
+	return dockerLinker
 }
+
+func (c Connections) SetConnections() error {
+	for _, conn := range c {
+		err := conn.Link()
+		if err != nil {
+			log.Fatal("Error in linking connection: ", err)
+			return err
+		}
+	}
+	return nil
+}
+
 //Implementation
 
 //newDockerLinker()
 //closeDocker()
 //closeDB()
-func (myOptions DockerOptions) Link() (*sql.DB, Config, error) {
+
+func (myOptions DockerOptions) Link() error {
 	//СПРЯТАЛЬ
-	// nolint:gochecknoglobals
-	var dockerPool *dockertest.Pool // the connection to docker
-	// nolint:gochecknoglobals
-	var systemdb *sql.DB // the connection to the mysql 'system' database
-	// nolint:gochecknoglobals
-	var sqlConfig *mysql.Config // the mysql container and config for connecting to other databases
-	// nolint:gochecknoglobals
-	var testMu *sync.Mutex // controls access to sqlConfig
+	var dockerPool *dockertest.Pool                     // the connection to docker
+	var systemdb *sql.DB                                // the connection to the mysql 'system' database
+	var sqlConfig *mysql.Config                         // the mysql container and config for connecting to other databases
+	var testMu *sync.Mutex                              // controls access to sqlConfig
 	_ = mysql.SetLogger(log.New(ioutil.Discard, "", 0)) // silence mysql logger
 	testMu = &sync.Mutex{}
 
@@ -91,10 +110,10 @@ func (myOptions DockerOptions) Link() (*sql.DB, Config, error) {
 	dockerPool.MaxWait = time.Minute * 2
 
 	runOptions := dockertest.RunOptions{
-		Repository: myOptions.Repository,
-		Tag:        myOptions.Tag,
-		Env:        myOptions.Env,
-		Mounts:     myOptions.Folders.MountPoints,
+		Repository: myOptions.repository,
+		Tag:        myOptions.tag,
+		Env:        myOptions.env,
+		Mounts:     myOptions.folders.mountPoints,
 	}
 	//TODO: add setup method
 	mysqlContainer, err := dockerPool.RunWithOptions(&runOptions, func(hostcfg *docker.HostConfig) {
@@ -106,8 +125,8 @@ func (myOptions DockerOptions) Link() (*sql.DB, Config, error) {
 		log.Fatalf("could not start mysqlContainer: %s", err)
 	}
 	sqlConfig = &mysql.Config{
-		User:                 myOptions.Account.User,
-		Passwd:               myOptions.Account.Password,
+		User:                 myOptions.account.user,
+		Passwd:               myOptions.account.password,
 		Net:                  "tcp",
 		Addr:                 fmt.Sprintf("localhost:%s", mysqlContainer.GetPort("3306/tcp")),
 		DBName:               "MyDB",
@@ -134,7 +153,14 @@ func (myOptions DockerOptions) Link() (*sql.DB, Config, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	myOptions.config = Config{pool: dockerPool, container: mysqlContainer}
+	myOptions.DB = dbStd
+	return err
+}
 
-	return dbStd,Config{Pool: dockerPool,
-		Container: mysqlContainer}, err
+func (myOptions DockerOptions) Close() {
+	if err := myOptions.config.pool.Purge(myOptions.config.container); err != nil {
+		log.Fatalf("Could not purge resource: %s", err)
+	}
+	os.Exit(0)
 }
